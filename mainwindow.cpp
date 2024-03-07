@@ -99,11 +99,12 @@ void MainWindow::Open() {
     }
 
     QFileInfo fileInfo(file);
+    ui->tabWidgetFile->setTabToolTip(currentTabIndex,filePath);
     ui->tabWidgetFile->setTabText(currentTabIndex,fileInfo.fileName());
     connect(currentTextEdit, &QTextEdit::textChanged, this, &MainWindow::OnTextChanged);
 
 
-
+    //TO DO AGAIN NOT WORKING PROPERLY
     connect(ui->textEditFile, &QTextEdit::textChanged, this, [this]() {
         QString tabText0 = this->ui->tabWidgetFile->tabText(0);
 
@@ -126,7 +127,7 @@ void MainWindow::Open() {
             this->ui->tabWidgetFile->setTabText(0, tabText0.left(tabText0.length() - 1));
         }
     });
-
+   // --------------------------------------
     file.close();
 }
 
@@ -146,27 +147,39 @@ void MainWindow::Save()
 {
     int index = ui->tabWidgetFile->currentIndex();
     QString tabText = ui->tabWidgetFile->tabText(index);
-    if(tabText.endsWith("*"))
-    {
-        tabText.chop(1);
-        ui->tabWidgetFile->setTabText(index,tabText);
-    }
-    QFile file(ui->tabWidgetFile->tabToolTip(index));
-    if(file.open(QFile::WriteOnly))
-    {
-        QMessageBox::warning(this,ui->tabWidgetFile->tabText(index), "Error, can't save");
-    }
-    QTextStream stream(&file);
-    QTextEdit* currentText = qobject_cast<QTextEdit*>(ui->tabWidgetFile->widget(index));
 
-    if(currentText)
-    {
+    if (tabText.endsWith("*")) {
+        tabText.chop(1);
+        ui->tabWidgetFile->setTabText(index, tabText);
+    }
+
+    QString filename = ui->tabWidgetFile->tabToolTip(index);
+    qDebug() << "Filename : " <<filename << Qt::endl;
+
+    if (filename.isEmpty()) {
+        QMessageBox::warning(this, "Error", "No filename available for saving.");
+        return;
+    }
+
+    QFile file(filename);
+    if (!file.open(QFile::WriteOnly)) {
+        QMessageBox::warning(this, "Error Saving File", "Cannot save file: " + file.errorString());
+        return;
+    }
+
+    QTextStream stream(&file);
+    QTextEdit *currentText = qobject_cast<QTextEdit*>(ui->tabWidgetFile->widget(index));
+
+    if (currentText) {
         initialContentMap[currentText] = currentText->toPlainText();
         stream << currentText->toPlainText();
+    } else {
+        stream << ui->textEditFile->toPlainText();
     }
-    file.close();
 
+    file.close();
 }
+
 
 
 void MainWindow::SaveAs()
