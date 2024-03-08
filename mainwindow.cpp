@@ -28,6 +28,9 @@ void MainWindow::WireConnections()
     connect(ui->actionNew_Tab, &QAction::triggered,this, &MainWindow::OpenNewTab);
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::Open);
     connect(ui->actionSave, &QAction::triggered,this, &MainWindow::Save);
+    connect(ui->actionSave_As,&QAction::triggered,this,&MainWindow::SaveAs);
+    connect(ui->tabWidgetFile,&QTabWidget::tabCloseRequested,this,&MainWindow::closeTab);
+    // connect(currentTextEdit,&QTextCursor::, this)
 
 
 }
@@ -38,25 +41,31 @@ void MainWindow::tabInit()
     ui->tabWidgetFile->removeTab(1);
     ui->tabWidgetFile->tabsClosable();
     ui->tabWidgetFile->setTabsClosable(true);
-    connect(ui->tabWidgetFile, &QTabWidget::tabCloseRequested, this, [&](int indexCloseRequested){
-
-        if (indexCloseRequested >= 0 && indexCloseRequested < ui->tabWidgetFile->count())
-        {
-            ui->tabWidgetFile->removeTab(indexCloseRequested);
-        } else {
-            QMessageBox indexError;
-            indexError.setText("Error, Index out of range.");
-            indexError.exec();
-        }
-    });
-
-
-
-    //TODO DEMANDE SAUVEGARDE SI FICHIER MODIFIER QMESSAGEBOX
-
-
 }
 
+void MainWindow::closeTab()
+{
+    int currentTabIndex = ui->tabWidgetFile->currentIndex();
+
+    if(ui->tabWidgetFile->tabText(currentTabIndex).endsWith("*"))
+    {
+        QMessageBox::StandardButton reply;
+        reply = QMessageBox::question(this, "Save confirmation", "The file '" + ui->tabWidgetFile->tabText(currentTabIndex)
+                                                                     + "' has been modified. Do you want to save before closing?", QMessageBox::Save | QMessageBox::Discard);
+        if (reply == QMessageBox::Save)
+        {
+            MainWindow::Save();
+        }
+    }else{
+        connect(ui->tabWidgetFile, &QTabWidget::tabCloseRequested, this, [&](int indexCloseRequested){
+
+            if (indexCloseRequested >= 0 && indexCloseRequested < ui->tabWidgetFile->count())
+            {
+                ui->tabWidgetFile->removeTab(indexCloseRequested);
+            }
+        });
+    }
+}
 
 void MainWindow::Open() {
 
@@ -104,34 +113,33 @@ void MainWindow::Open() {
     connect(currentTextEdit, &QTextEdit::textChanged, this, &MainWindow::OnTextChanged);
 
 
-    //TO DO AGAIN NOT WORKING PROPERLY
+
+    //2 modifs
     connect(ui->textEditFile, &QTextEdit::textChanged, this, [this]() {
         QString tabText0 = this->ui->tabWidgetFile->tabText(0);
 
-        // Store the initial text only once before any modifications
+
         static QString initialText = this->ui->textEditFile->toPlainText();
 
         if (ui->textEditFile->toPlainText() != initialText)
-        { // Text has been modified
+        {
             if (!tabText0.endsWith("*"))
             {
-                // Text changed and no asterisk, add it
+
                 this->ui->tabWidgetFile->setTabText(0, tabText0 + "*");
             }
 
             // Update the initial text for future comparisons
             initialText = ui->textEditFile->toPlainText();
 
-        } else if (tabText0.endsWith("*")) { // Text reverted to initial state
-            // Remove the asterisk
+        } else if (tabText0.endsWith("*"))
+        {
             this->ui->tabWidgetFile->setTabText(0, tabText0.left(tabText0.length() - 1));
         }
     });
-   // --------------------------------------
+    // --------------------------------------
     file.close();
 }
-
-
 
 void MainWindow::OpenNewTab()
 {
@@ -184,7 +192,41 @@ void MainWindow::Save()
 
 void MainWindow::SaveAs()
 {
+    int index = ui->tabWidgetFile->currentIndex();
+    QString tabText = ui->tabWidgetFile->tabText(index);
 
+    if (tabText.endsWith("*")) {
+        tabText.chop(1);
+        ui->tabWidgetFile->setTabText(index, tabText);
+    }
+
+    QString filename = QFileDialog::getSaveFileName(this, "Save as");
+    qDebug() << "Filename : " <<filename << Qt::endl;
+
+    if (filename.isEmpty()) {
+        QMessageBox::warning(this, "Error", "No filename available for saving.");
+        return;
+    }
+
+    QFile file(filename);
+    if (!file.open(QFile::WriteOnly)) {
+        QMessageBox::warning(this, "Error Saving File", "Cannot save file: " + file.errorString());
+        return;
+    }
+
+    currentFile = filename;
+    setWindowTitle(filename);
+    QTextStream stream(&file);
+    QTextEdit *currentText = qobject_cast<QTextEdit*>(ui->tabWidgetFile->widget(index));
+
+    if (currentText) {
+        initialContentMap[currentText] = currentText->toPlainText();
+        stream << currentText->toPlainText();
+    } else {
+        stream << ui->textEditFile->toPlainText();
+    }
+
+    file.close();
 }
 
 void MainWindow::OnTextChanged()

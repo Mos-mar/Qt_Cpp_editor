@@ -28,16 +28,16 @@ private slots:
     void Open();
     void Save();
     void SaveAs();
-
-
+    void closeTab();
 
 
 private:
     Ui::MainWindow *ui;
     QMap<QTextEdit*, QString> initialContentMap;
+    QString currentFile = "";
     void WireConnections();
     void tabInit();
     void OnTextChanged();
-    void OnTextChanged0(); //vire ca
+
 };
 #endif // MAINWINDOW_H
