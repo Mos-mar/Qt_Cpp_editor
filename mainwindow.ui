@@ -73,8 +73,7 @@
     <property name="title">
      <string>Edit</string>
     </property>
-    <addaction name="actionSearch"/>
-    <addaction name="actionReplace"/>
+    <addaction name="actionSearchReplace"/>
     <addaction name="actionHistory"/>
    </widget>
    <addaction name="menuFile"/>
@@ -101,9 +100,9 @@
     <string>Save As</string>
    </property>
   </action>
-  <action name="actionSearch">
+  <action name="actionSearchReplace">
    <property name="text">
-    <string>Search</string>
+    <string>Search and Replace</string>
    </property>
   </action>
   <action name="actionReplace">

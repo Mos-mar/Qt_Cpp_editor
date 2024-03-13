@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+
 #include <QMainWindow>
 #include<QList>
 #include<QSettings>
@@ -29,15 +30,19 @@ private slots:
     void Save();
     void SaveAs();
     void closeTab();
+    void cursorPosition();
+    void cursorPositionDefaultTab();
+    void SearchReplace();
 
 
 private:
     Ui::MainWindow *ui;
     QMap<QTextEdit*, QString> initialContentMap;
-    QString currentFile = "";
+    QString currentFile = "";   
     void WireConnections();
     void tabInit();
     void OnTextChanged();
+
 
 };
 #endif // MAINWINDOW_H

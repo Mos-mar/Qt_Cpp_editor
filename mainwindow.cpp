@@ -9,6 +9,10 @@
 #include <QTabBar>
 #include <QMessageBox>
 #include <QTabWidget>
+#include <QInputDialog>
+#include <QLabel>
+#include <QPushButton>
+#include <QSizePolicy>
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -20,6 +24,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     tabInit();
     WireConnections();
+    statusBar()->showMessage(tr("Ready"));
 
 }
 
@@ -30,9 +35,9 @@ void MainWindow::WireConnections()
     connect(ui->actionSave, &QAction::triggered,this, &MainWindow::Save);
     connect(ui->actionSave_As,&QAction::triggered,this,&MainWindow::SaveAs);
     connect(ui->tabWidgetFile,&QTabWidget::tabCloseRequested,this,&MainWindow::closeTab);
-    // connect(currentTextEdit,&QTextCursor::, this)
+    connect(ui->actionSearchReplace,&QAction::triggered,this,&MainWindow::SearchReplace);
 
-
+    //HISTORY ET C BON
 }
 
 void MainWindow::tabInit()
@@ -51,7 +56,7 @@ void MainWindow::closeTab()
     {
         QMessageBox::StandardButton reply;
         reply = QMessageBox::question(this, "Save confirmation", "The file '" + ui->tabWidgetFile->tabText(currentTabIndex)
-                                                                     + "' has been modified. Do you want to save before closing?", QMessageBox::Save | QMessageBox::Discard);
+                             + "' has been modified. Do you want to save before closing?", QMessageBox::Save | QMessageBox::Discard);
         if (reply == QMessageBox::Save)
         {
             MainWindow::Save();
@@ -66,6 +71,36 @@ void MainWindow::closeTab()
         });
     }
 }
+
+void MainWindow::cursorPosition()
+{
+    QTextEdit* currentTextEdit = qobject_cast<QTextEdit*>(ui->tabWidgetFile->currentWidget());
+    if(currentTextEdit)
+    {
+        QTextCursor cursor = currentTextEdit->textCursor();
+        int row = cursor.blockNumber() + 1;
+        int column = cursor.columnNumber() + 1;
+        statusBar()->showMessage(tr("Row %1, Column %2").arg(row).arg(column));
+    }else{
+        statusBar()->clearMessage();
+    }
+
+}
+
+void MainWindow::cursorPositionDefaultTab()
+{
+    if(ui->textEditFile)
+    {
+        QTextCursor cursor0 = ui->textEditFile->textCursor();
+        int row = cursor0.blockNumber();
+        int column = cursor0.columnNumber();
+        statusBar()->showMessage(tr("Row %1 , Column %2").arg(row).arg(column));
+    }else{
+        statusBar()->clearMessage();
+    }
+}
+
+
 
 void MainWindow::Open() {
 
@@ -85,7 +120,6 @@ void MainWindow::Open() {
     if (filePath.isEmpty())
     {
         qWarning() << "Error no path found:" << filePath.isEmpty();
-        return;
         return;
     }
 
@@ -111,8 +145,8 @@ void MainWindow::Open() {
     ui->tabWidgetFile->setTabToolTip(currentTabIndex,filePath);
     ui->tabWidgetFile->setTabText(currentTabIndex,fileInfo.fileName());
     connect(currentTextEdit, &QTextEdit::textChanged, this, &MainWindow::OnTextChanged);
-
-
+    connect(currentTextEdit,&QTextEdit::cursorPositionChanged,this,&MainWindow::cursorPosition);
+    connect(ui->textEditFile,&QTextEdit::cursorPositionChanged,this,&MainWindow::cursorPositionDefaultTab);
 
     //2 modifs
     connect(ui->textEditFile, &QTextEdit::textChanged, this, [this]() {
@@ -138,6 +172,7 @@ void MainWindow::Open() {
         }
     });
     // --------------------------------------
+
     file.close();
 }
 
@@ -217,11 +252,11 @@ void MainWindow::SaveAs()
     currentFile = filename;
     setWindowTitle(filename);
     QTextStream stream(&file);
-    QTextEdit *currentText = qobject_cast<QTextEdit*>(ui->tabWidgetFile->widget(index));
+    QTextEdit *currentTextEdit = qobject_cast<QTextEdit*>(ui->tabWidgetFile->widget(index));
 
-    if (currentText) {
-        initialContentMap[currentText] = currentText->toPlainText();
-        stream << currentText->toPlainText();
+    if (currentTextEdit) {
+        initialContentMap[currentTextEdit] = currentTextEdit->toPlainText();
+        stream << currentTextEdit->toPlainText();
     } else {
         stream << ui->textEditFile->toPlainText();
     }
@@ -259,11 +294,115 @@ void MainWindow::OnTextChanged()
 
 }
 
+void MainWindow::SearchReplace()
+{
+    QTextEdit* currentTextEdit = qobject_cast<QTextEdit*>(ui->tabWidgetFile->currentWidget());
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("Search");
+
+    QGridLayout layout;
+    dialog.setLayout(&layout);
+    dialog.resize(400 , 300);
+
+    QLabel searchLabel("Search for: ");
+    QLineEdit searchLine;
+    QLabel replaceLabel("Replace : ");
+    QLineEdit replaceLine;
+
+    QPushButton searchBtn("Search");
+    QPushButton replaceBtn("Replace");
+    QPushButton replaceAllBtn("Replace All");
+
+    layout.addWidget(&searchLabel,0,0);
+    layout.addWidget(&searchLine,0,1);
+    layout.addWidget(&replaceLabel,2,0);
+    layout.addWidget(&replaceLine,2,1);
+    layout.addWidget(&searchBtn,1,0);
+    layout.addWidget(&replaceBtn,3,0);
+    layout.addWidget(&replaceAllBtn,3,1);
+    replaceAllBtn.setSizePolicy(QSizePolicy::Maximum,QSizePolicy::Maximum);
+
+    if(currentTextEdit)
+    {
+        QTextDocument::FindFlag flag = QTextDocument::FindCaseSensitively;
+        connect(&searchBtn,&QPushButton::clicked,this, [&] {
+
+            if(currentTextEdit->find(searchLine.text(),flag))
+            {
+
+                QTextCursor currentCursor = currentTextEdit->textCursor();
+                QTextCharFormat highLightFormat;
+                highLightFormat.setBackground(Qt::yellow);
+                highLightFormat.setForeground(Qt::black);
+                currentCursor.mergeCharFormat(highLightFormat);
+                currentCursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+            }
+
+        });
+
+        connect(&replaceBtn,&QPushButton::clicked,this, [&] {
+            if(currentTextEdit->textCursor().hasSelection())
+            {
+                currentTextEdit->insertPlainText(replaceLine.text());
+            }
+
+        });
+
+        connect(&replaceAllBtn,&QPushButton::clicked,this, [&] {
+            currentTextEdit->moveCursor(QTextCursor::Start);
+            QTextCursor currentCursor = currentTextEdit->textCursor();
+            QTextCursor searched = currentTextEdit->document()->find(searchLine.text(),flag);
+            while(!searched.isNull())
+            {
+                searched.insertText(replaceLine.text());
+                searched = currentTextEdit->document()->find(searchLine.text(),flag);
+            }
 
 
+        });
+    }else if(!currentTextEdit)
+    {
+        QTextDocument::FindFlag flag = QTextDocument::FindCaseSensitively;
+        connect(&searchBtn,&QPushButton::clicked,this, [&] {
+
+            if(ui->textEditFile->find(searchLine.text(),flag))
+            {
+
+                QTextCursor currentCursor = ui->textEditFile->textCursor();
+                QTextCharFormat highLightFormat;
+                highLightFormat.setBackground(Qt::yellow);
+                highLightFormat.setForeground(Qt::black);
+                currentCursor.mergeCharFormat(highLightFormat);
+                currentCursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+            }
+
+        });
+
+        connect(&replaceBtn,&QPushButton::clicked,this, [&] {
+            if(ui->textEditFile->textCursor().hasSelection())
+            {
+                ui->textEditFile->insertPlainText(replaceLine.text());
+            }
+
+        });
+
+        connect(&replaceAllBtn,&QPushButton::clicked,this, [&] {
+            ui->textEditFile->moveCursor(QTextCursor::Start);
+            QTextCursor currentCursor = ui->textEditFile->textCursor();
+            QTextCursor searched = ui->textEditFile->document()->find(searchLine.text(),flag);
+            while(!searched.isNull())
+            {
+                searched.insertText(replaceLine.text());
+                searched = ui->textEditFile->document()->find(searchLine.text(),flag);
+            }
 
 
+        });
+    }
 
+    dialog.exec();
+}
 
 
 
@@ -271,10 +410,4 @@ MainWindow::~MainWindow()
 {
     delete ui;
 }
-
-
-
-
-
-
 
