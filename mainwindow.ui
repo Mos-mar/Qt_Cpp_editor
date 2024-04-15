@@ -74,10 +74,15 @@
      <string>Edit</string>
     </property>
     <addaction name="actionSearchReplace"/>
-    <addaction name="actionHistory"/>
+   </widget>
+   <widget class="QMenu" name="menuRecent_Files">
+    <property name="title">
+     <string>Recent Files</string>
+    </property>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
+   <addaction name="menuRecent_Files"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionOpen">

@@ -14,14 +14,22 @@
 #include <QPushButton>
 #include <QSizePolicy>
 
-
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    settings = new QSettings("Organization","Text Editor",this);
     QMainWindow::setWindowTitle("Text Editor");
 
+    for (int i = 0; i < MAXRECENTFILE; ++i)
+    {
+        QAction *action = new QAction(this);
+        action->setVisible(false);        
+        ui->menuRecent_Files->addAction(action);
+        recentFiles.append(action);
+    }
+    UpdateRecentFileActions();
     tabInit();
     WireConnections();
     statusBar()->showMessage(tr("Ready"));
@@ -30,14 +38,19 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::WireConnections()
 {
+    QTextEdit *currentTextEdit = qobject_cast<QTextEdit*>(ui->tabWidgetFile->currentWidget());
+    connect(currentTextEdit,&QTextEdit::cursorPositionChanged,this,&MainWindow::cursorPosition);
+    connect(ui->textEditFile,&QTextEdit::cursorPositionChanged,this,&MainWindow::cursorPositionDefaultTab);
     connect(ui->actionNew_Tab, &QAction::triggered,this, &MainWindow::OpenNewTab);
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::Open);
     connect(ui->actionSave, &QAction::triggered,this, &MainWindow::Save);
     connect(ui->actionSave_As,&QAction::triggered,this,&MainWindow::SaveAs);
     connect(ui->tabWidgetFile,&QTabWidget::tabCloseRequested,this,&MainWindow::closeTab);
-    connect(ui->actionSearchReplace,&QAction::triggered,this,&MainWindow::SearchReplace);
-
-    //HISTORY ET C BON
+    connect(ui->actionSearchReplace,&QAction::triggered,this,&MainWindow::SearchReplace);    
+    for (QAction *action : recentFiles)
+    {
+        connect(action, &QAction::triggered, this, &MainWindow::OpenRecentFile);
+    }
 }
 
 void MainWindow::tabInit()
@@ -56,7 +69,7 @@ void MainWindow::closeTab()
     {
         QMessageBox::StandardButton reply;
         reply = QMessageBox::question(this, "Save confirmation", "The file '" + ui->tabWidgetFile->tabText(currentTabIndex)
-                             + "' has been modified. Do you want to save before closing?", QMessageBox::Save | QMessageBox::Discard);
+                                                                     + "' has been modified. Do you want to save before closing?", QMessageBox::Save | QMessageBox::Discard);
         if (reply == QMessageBox::Save)
         {
             MainWindow::Save();
@@ -92,15 +105,13 @@ void MainWindow::cursorPositionDefaultTab()
     if(ui->textEditFile)
     {
         QTextCursor cursor0 = ui->textEditFile->textCursor();
-        int row = cursor0.blockNumber();
-        int column = cursor0.columnNumber();
+        int row = cursor0.blockNumber() + 1;
+        int column = cursor0.columnNumber() + 1;
         statusBar()->showMessage(tr("Row %1 , Column %2").arg(row).arg(column));
     }else{
         statusBar()->clearMessage();
     }
 }
-
-
 
 void MainWindow::Open() {
 
@@ -172,12 +183,21 @@ void MainWindow::Open() {
         }
     });
     // --------------------------------------
-
+    //Adds the file to the list of last files opened (in my private attribute "settings")
+    QStringList recentFile = settings->value("RecentFiles").toStringList();
+    recentFile.removeAll(filePath);
+    recentFile.prepend(filePath);
+    while (recentFile.size() > 10)
+        recentFile.removeLast();
+    settings->setValue("RecentFiles", recentFile);
+    UpdateRecentFileActions();
     file.close();
 }
 
 void MainWindow::OpenNewTab()
 {
+    QTextEdit *currentTextEdit = qobject_cast<QTextEdit*>(ui->tabWidgetFile->currentWidget());
+    connect(currentTextEdit,&QTextEdit::cursorPositionChanged,this,&MainWindow::cursorPosition);
     int tabCount = ui->tabWidgetFile->count();
     QTextEdit& newTab = *new QTextEdit(this);
     QString tabName = "New " + QString::number(tabCount + 1);
@@ -222,7 +242,6 @@ void MainWindow::Save()
 
     file.close();
 }
-
 
 
 void MainWindow::SaveAs()
@@ -290,8 +309,6 @@ void MainWindow::OnTextChanged()
             }
         }
     }
-
-
 }
 
 void MainWindow::SearchReplace()
@@ -405,6 +422,71 @@ void MainWindow::SearchReplace()
 }
 
 
+
+void MainWindow::OpenRecentFile() {
+    QAction* action = qobject_cast<QAction*>(sender());
+
+    if (action)
+    {        
+        QString fileName = action->data().toString();
+        qDebug() << "filename " <<  fileName << Qt::endl;
+        displayRecent(fileName);
+    }
+}
+
+void MainWindow::displayRecent(const QString &fileName)
+{
+    QAction* action = qobject_cast<QAction*>(sender());
+
+
+    if(action)
+    {
+        //New tab with corresponding tabName of chosen recent file
+        QTextEdit* newTab = new QTextEdit(this);
+        QFileInfo fileInfo(fileName);
+        QString tabName =  fileInfo.fileName();
+        ui->tabWidgetFile->addTab(newTab,tabName);
+        ui->tabWidgetFile->setCurrentWidget(newTab);
+
+        //filling current text edit with the content of the file
+        QFile recentFile(fileName);
+
+        if(recentFile.exists() && recentFile.open(QIODevice::ReadOnly))
+        {
+            int currentTabIndex = ui->tabWidgetFile->indexOf(newTab);
+            ui->tabWidgetFile->setTabToolTip(currentTabIndex,fileName); //to enable save fct
+            connect(newTab,&QTextEdit::cursorPositionChanged,this,&MainWindow::cursorPosition);
+            QString recentFileContent = recentFile.readAll();
+            newTab->setPlainText(recentFileContent);
+            connect(newTab, &QTextEdit::textChanged, this, &MainWindow::OnTextChanged);
+
+            recentFile.close();
+        }else{
+            qDebug() << "Could not open file in MainWindow::displayRecent" << recentFile.errorString();
+        }
+    }
+}
+
+
+void MainWindow::UpdateRecentFileActions()
+{
+    QStringList files = settings->value("RecentFiles").toStringList();
+    int numRecentFiles = qMin(files.size(), MAXRECENTFILE);
+    qDebug() << "numrecent files : " << numRecentFiles << Qt::endl;
+
+    for (int i = 0; i < numRecentFiles; ++i)
+    {
+        QString text = tr("&%1 %2").arg(i + 1).arg(files[i]);
+        recentFiles[i]->setText(text);
+        recentFiles[i]->setData(files[i]);
+        recentFiles[i]->setVisible(true);
+    }
+
+    for (int j = numRecentFiles; j < MAXRECENTFILE; ++j) {
+        recentFiles[j]->setVisible(false);
+    }
+
+}
 
 MainWindow::~MainWindow()
 {
