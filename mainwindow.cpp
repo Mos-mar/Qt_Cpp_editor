@@ -13,6 +13,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSizePolicy>
+const int MainWindow::MAXRECENTFILE;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
